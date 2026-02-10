@@ -16,14 +16,14 @@
         android:id="@+id/btnPickAudio"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Escolher áudio do celular"
-        android:layout_marginTop="12dp"/>
+        android:layout_marginTop="12dp"
+        android:text="Escolher áudio do celular" />
 
     <TextView
         android:id="@+id/txtResult"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:layout_marginTop="24dp"
         android:text="Resultado aparecerá aqui"
-        android:textSize="16sp"
-        android:layout_marginTop="24dp"/>
+        android:textSize="16sp" />
 </LinearLayout>

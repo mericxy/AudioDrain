@@ -5,11 +5,13 @@ import android.content.Intent
 import android.media.MediaPlayer
 import android.os.BatteryManager
 import android.os.Bundle
-import android.provider.OpenableColumns
+import android.os.Handler
+import android.os.Looper
 import android.widget.Button
 import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import kotlin.math.abs
 
 class MainActivity : AppCompatActivity() {
 
@@ -19,6 +21,10 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var txtResult: TextView
     private var mediaPlayer: MediaPlayer? = null
+
+    private val currentSamplesUa = mutableListOf<Int>()
+    private val handler = Handler(Looper.getMainLooper())
+    private var sampling = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -40,17 +46,24 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun getBatteryLevel(): Int {
-        return batteryManager.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
+        return batteryManager.getIntProperty(
+            BatteryManager.BATTERY_PROPERTY_CAPACITY
+        )
+    }
+
+    private fun getBatteryCurrentUa(): Int {
+        return batteryManager.getIntProperty(
+            BatteryManager.BATTERY_PROPERTY_CURRENT_NOW
+        )
     }
 
     private fun playDefaultAudio() {
         stopPlayer()
-
-        batteryStart = getBatteryLevel()
-        startTime = System.currentTimeMillis()
+        startMeasurement()
 
         mediaPlayer = MediaPlayer.create(this, R.raw.sample_audio)
         mediaPlayer?.setOnCompletionListener {
+            stopMeasurement()
             showResults()
         }
         mediaPlayer?.start()
@@ -58,36 +71,64 @@ class MainActivity : AppCompatActivity() {
 
     private fun playSelectedAudio(uri: android.net.Uri) {
         stopPlayer()
-
-        batteryStart = getBatteryLevel()
-        startTime = System.currentTimeMillis()
+        startMeasurement()
 
         mediaPlayer = MediaPlayer().apply {
             setDataSource(this@MainActivity, uri)
             prepare()
             setOnCompletionListener {
+                stopMeasurement()
                 showResults()
             }
             start()
         }
     }
 
+    private fun startMeasurement() {
+        batteryStart = getBatteryLevel()
+        startTime = System.currentTimeMillis()
+        currentSamplesUa.clear()
+        sampling = true
+        sampleCurrent()
+    }
+
+    private fun stopMeasurement() {
+        sampling = false
+        handler.removeCallbacksAndMessages(null)
+    }
+
+    private fun sampleCurrent() {
+        if (!sampling) return
+
+        val currentUa = getBatteryCurrentUa()
+        currentSamplesUa.add(currentUa)
+
+        handler.postDelayed({ sampleCurrent() }, 500)
+    }
+
     private fun showResults() {
         val batteryEnd = getBatteryLevel()
         val endTime = System.currentTimeMillis()
-
-        val batteryConsumed = batteryStart - batteryEnd
         val durationSeconds = (endTime - startTime) / 1000.0
 
+        val currentMaSamples = currentSamplesUa.map {
+            abs(it) / 1000.0
+        }
+
+        val avgCurrent = currentMaSamples.average()
+        val maxCurrent = currentMaSamples.maxOrNull() ?: 0.0
+
         txtResult.text = """
+            🔌 Corrente média: ${"%.2f".format(avgCurrent)} mA
+            📈 Pico de corrente: ${"%.2f".format(maxCurrent)} mA
+            ⏱️ Tempo: ${"%.2f".format(durationSeconds)} s
             🔋 Bateria inicial: $batteryStart%
             🔋 Bateria final: $batteryEnd%
-            📉 Consumo: $batteryConsumed%
-            ⏱️ Tempo: $durationSeconds segundos
         """.trimIndent()
     }
 
     private fun stopPlayer() {
+        stopMeasurement()
         mediaPlayer?.release()
         mediaPlayer = null
     }
